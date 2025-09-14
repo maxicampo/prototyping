@@ -39,54 +39,66 @@ def main():
         help="Optional: Folder to save the results. Defaults to 'results'."
     )
 
+    parser.add_argument(
+        '--era_model',
+        type=str,
+        default='no',
+        help="Is this ERA model?"
+    )
+
     args = parser.parse_args()
 
     file_name_temp = args.file_name_temp
     file_name_pp = args.file_name_pp
     results_folder = args.results_folder
+    era_model = args.era_model
 
     # Create results folder if it doesn't exist
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
         print(f"Created results folder: {results_folder}")
 
-    print(f"Loading temperature data from: {file_name_temp}")
-    dset_temp = xr.open_dataset(f'./{file_name_temp}')
-    print(f"Loading precipitation data from: {file_name_pp}")
-    dset_pp = xr.open_dataset(f'./{file_name_pp}')
-
-    df_temp = dset_temp.to_dataframe().reset_index()
-    df_pp = dset_pp.to_dataframe().reset_index()
-
-    seconds_per_day = 86400
-    df_raw = pd.merge(df_temp, df_pp, on=['lat', 'lon', 'time'])
-
-    # Adjust longitude from 0-360 to -180-180 if necessary
-    # This is often needed for global_land_mask or other geospatial operations
-    df_raw['lon'] = df_raw['lon'].apply(lambda x: x - 360 if x > 180 else x)
-
-    # Convert temperature from Kelvin to Celsius
-    df_raw['t2m'] = df_raw['tasmax'] - 273.15
-    # Convert precipitation flux to mm/day
-    df_raw['tp'] = df_raw['pr'] * seconds_per_day
-
-    # Convert time column to datetime objects and extract components
-    df_raw['time'] = pd.to_datetime(df_raw.time.astype(str))
-    df_raw['year'] = df_raw.time.dt.year
-    df_raw['month'] = df_raw.time.dt.month
-    df_raw['day'] = df_raw.time.dt.day
-    df_raw['hour'] = df_raw.time.dt.hour
-
-    # Create a unique station identifier
-    df_raw['station'] = df_raw['lat'].astype(str) + '_' + df_raw['lon'].astype(str)
-
-    # Select and rename columns for further processing
-    df = df_raw[['year', 'month', 'day', 'station', 't2m', 'tp', 'lat', 'lon']].rename(columns={
-        'lat': 'latitude',
-        'lon': 'longitude',
-        't2m': 'TMAX',
-        'tp': 'PP'
-    })
+    if era_model == 'no':
+        print(f"Loading temperature data from: {file_name_temp}")
+        dset_temp = xr.open_dataset(f'./{file_name_temp}')
+        print(f"Loading precipitation data from: {file_name_pp}")
+        dset_pp = xr.open_dataset(f'./{file_name_pp}')
+    
+        df_temp = dset_temp.to_dataframe().reset_index()
+        df_pp = dset_pp.to_dataframe().reset_index()
+    
+        seconds_per_day = 86400
+        df_raw = pd.merge(df_temp, df_pp, on=['lat', 'lon', 'time'])
+    
+        # Adjust longitude from 0-360 to -180-180 if necessary
+        # This is often needed for global_land_mask or other geospatial operations
+        df_raw['lon'] = df_raw['lon'].apply(lambda x: x - 360 if x > 180 else x)
+    
+        # Convert temperature from Kelvin to Celsius
+        df_raw['t2m'] = df_raw['tasmax'] - 273.15
+        # Convert precipitation flux to mm/day
+        df_raw['tp'] = df_raw['pr'] * seconds_per_day
+    
+        # Convert time column to datetime objects and extract components
+        df_raw['time'] = pd.to_datetime(df_raw.time.astype(str))
+        df_raw['year'] = df_raw.time.dt.year
+        df_raw['month'] = df_raw.time.dt.month
+        df_raw['day'] = df_raw.time.dt.day
+        df_raw['hour'] = df_raw.time.dt.hour
+    
+        # Create a unique station identifier
+        df_raw['station'] = df_raw['lat'].astype(str) + '_' + df_raw['lon'].astype(str)
+    
+        # Select and rename columns for further processing
+        df = df_raw[['year', 'month', 'day', 'station', 't2m', 'tp', 'lat', 'lon']].rename(columns={
+            'lat': 'latitude',
+            'lon': 'longitude',
+            't2m': 'TMAX',
+            'tp': 'PP'
+        })
+        
+    elif era_model == 'yes':
+        df = pd.read_csv('era/daily_era_data.csv')
 
     # Loop through different processing scenarios
     for season in ['winter', 'summer']:
